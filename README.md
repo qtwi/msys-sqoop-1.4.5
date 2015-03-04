@@ -24,6 +24,9 @@ set HIVE_HOME=C:/Apache/hive-0.12.0
 bash %HIVE_HOME/hive %*
 ```
 
+note that bash of msys/mingw requires forward-slash character as path separator instead of bashward-slash character.
+
+
 ## license
 depend on original source code.
 
