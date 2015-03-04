@@ -1,0 +1,380 @@
+diff -uN -r sqoop-1.4.5-src/bin/pathfix sqoop-1.4.5-2.6.0-0.12.0-src/bin/pathfix
+--- sqoop-1.4.5-src/bin/pathfix	Thu Jan  1 09:00:00 1970
++++ sqoop-1.4.5-2.6.0-0.12.0-src/bin/pathfix	Tue Mar  3 22:13:52 2015
+@@ -0,0 +1,5 @@
++
++pathfix() {
++  pf=`echo $1|sed -e 's/^[cC]:/\/c\//;s/:[cC]:/:\/c\//g;s/:/;/g;s/\/c\//c:\\\\/g;s/\//\\\\/g;s/\\\\\\\\/\\\\/g'`
++  echo $pf
++}
+diff -uN -r sqoop-1.4.5-src/build.xml sqoop-1.4.5-2.6.0-0.12.0-src/build.xml
+--- sqoop-1.4.5-src/build.xml	Sat Aug  2 03:07:55 2014
++++ sqoop-1.4.5-2.6.0-0.12.0-src/build.xml	Tue Mar  3 22:19:00 2015
+@@ -39,7 +39,7 @@
+     </then>
+     <else>
+       <echo message="Use Hadoop 2.x by default" />
+-      <property name="hadoopversion" value="200" />
++      <property name="hadoopversion" value="260" />
+     </else>
+   </if>
+ 
+@@ -60,6 +60,7 @@
+     <then>
+       <if>
+         <or>
++          <equals arg1="${hcatprofile}" arg2="12" />
+           <equals arg1="${hcatprofile}" arg2="13" />
+         </or>
+         <then>
+@@ -71,8 +72,8 @@
+       </if>
+     </then>
+     <else>
+-      <echo message="Using HCatalog profile 0.13" />
+-      <property name="hcatprofile" value="13" />
++      <echo message="Using HCatalog profile 0.12" />
++      <property name="hcatprofile" value="12" />
+     </else>
+   </if>
+ 
+@@ -185,8 +186,21 @@
+         <property name="avrohadoopprofile" value="2" />
+       </then>
+     </elseif>
++
++    <elseif>
++      <equals arg1="${hadoopversion}" arg2="260" />
++      <then>
++        <property name="hadoop.version" value="2.6.0" />
++        <property name="hbase94.version" value="0.94.2" />
++        <property name="zookeeper.version" value="3.4.6" />
++        <property name="hadoop.version.full" value="2.6.0" />
++        <property name="hcatalog.version" value="0.12.0" />
++        <property name="hbasecompatprofile" value="2" />
++        <property name="avrohadoopprofile" value="2" />
++      </then>
++    </elseif>
+     <else>
+-      <fail message="Unrecognized hadoopversion. Can only be 20, 23, 100, 200 or 210." />
++      <fail message="Unrecognized hadoopversion. Can only be 20, 23, 100, 200, 210 or 260." />
+     </else>
+   </if>
+ 
+@@ -635,8 +649,9 @@
+   </target>
+ 
+   <target name="package"
+-      depends="jar-all,compile-all,docs,ivy-retrieve-redist,scripts"
++      depends="jar,compile,docs,ivy-retrieve-redist,scripts"
+       description="Create a redistributable package">
++      <!-- but it should be jar-all,compile-all,.. -->
+ 
+     <mkdir dir="${dist.dir}"/>
+ 
+diff -uN -r sqoop-1.4.5-src/ivy.xml sqoop-1.4.5-2.6.0-0.12.0-src/ivy.xml
+--- sqoop-1.4.5-src/ivy.xml	Sat Aug  2 03:07:55 2014
++++ sqoop-1.4.5-2.6.0-0.12.0-src/ivy.xml	Tue Mar  3 22:38:29 2015
+@@ -44,6 +44,7 @@
+     <conf name="avro" visibility="private" extends="avrohadoop${avrohadoopprofile}" />
+     <conf name="avrohadoop1" visibility="private" />
+     <conf name="avrohadoop2" visibility="private" />
++    <conf name="hcatalog12" visibility="private" />
+     <conf name="hcatalog13" visibility="private" />
+     <conf name="hadoop23" visibility="private"
+       extends="common,runtime,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
+@@ -55,6 +56,9 @@
+       extends="common,runtime,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
+     <conf name="hadoop210" visibility="private"
+       extends="common,runtime,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
++    <conf name="hadoop260" visibility="private"
++      extends="common,runtime,avro,hbase${hbaseprofile},hcatalog${hcatprofile},accumulo" />
++
+ 
+     <conf name="test" visibility="private" extends="common,runtime"/>
+     <conf name="hadoop23test" visibility="private" extends="test,hadoop23" />
+@@ -62,6 +66,7 @@
+     <conf name="hadoop100test" visibility="private" extends="test,hadoop100" />
+     <conf name="hadoop200test" visibility="private" extends="test,hadoop200" />
+     <conf name="hadoop210test" visibility="private" extends="test,hadoop210" />
++    <conf name="hadoop260test" visibility="private" extends="test,hadoop260" />
+ 
+     <!-- We don't redistribute everything we depend on (e.g., Hadoop itself);
+          anything which Hadoop itself also depends on, we do not ship.
+@@ -85,6 +90,28 @@
+     <artifact conf="master"/>
+   </publications>
+   <dependencies>
++    <!-- Dependencies for Hadoop 2.6.0 -->
++    <dependency org="org.apache.hadoop" name="hadoop-common"
++      rev="${hadoop.version}" conf="hadoop260->default">
++      <artifact name="hadoop-common" type="jar" />
++      <artifact name="hadoop-common" type="jar" m:classifier="tests"/>
++    </dependency>
++    <dependency org="org.apache.hadoop" name="hadoop-hdfs"
++      rev="${hadoop.version}" conf="hadoop260->default">
++      <artifact name="hadoop-hdfs" type="jar" />
++      <artifact name="hadoop-hdfs" type="jar" m:classifier="tests"/>
++    </dependency>
++    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-common"
++      rev="${hadoop.version}" conf="hadoop260->default"/>
++    <dependency org="org.apache.hadoop" name="hadoop-mapreduce-client-core"
++      rev="${hadoop.version}" conf="hadoop260->default"/>
++    <dependency org="org.apache.hadoop" name="hadoop-auth"
++      rev="${hadoop.version}" conf="hadoop260->default"/>
++    <dependency org="org.aspectj" name="aspectjtools" rev="${aspectj.version}"
++      conf="hadoop260->default"/>
++    <dependency org="org.aspectj" name="aspectjrt" rev="${aspectj.version}"
++      conf="hadoop260->default"/>
++
+     <!-- Dependencies for Hadoop 2.1.0 -->
+     <dependency org="org.apache.hadoop" name="hadoop-common"
+       rev="${hadoop.version}" conf="hadoop210->default">
+@@ -282,6 +309,10 @@
+     </dependency>
+ 
+ 
++    <dependency org="org.apache.hive.hcatalog" name="hcatalog-core"
++      rev="${hcatalog.version}" conf="hcatalog12->default">
++      <artifact name="hcatalog-core" type="jar"/>
++    </dependency>
+     <dependency org="org.apache.hive.hcatalog" name="hive-hcatalog-core"
+       rev="${hcatalog.version}" conf="hcatalog13->default">
+       <artifact name="hive-hcatalog-core" type="jar"/>
+Binary files sqoop-1.4.5-src/lib/ivy-2.3.0.jar and sqoop-1.4.5-2.6.0-0.12.0-src/lib/ivy-2.3.0.jar differ
+diff -uN -r sqoop-1.4.5-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatExportHelper.java sqoop-1.4.5-2.6.0-0.12.0-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatExportHelper.java
+--- sqoop-1.4.5-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatExportHelper.java	Sat Aug  2 03:07:55 2014
++++ sqoop-1.4.5-2.6.0-0.12.0-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatExportHelper.java	Tue Mar  3 22:09:13 2015
+@@ -189,29 +189,7 @@
+           }
+         }
+         break;
+-      case DATE:
+-        Date date = (Date) val;
+-        if (javaColType.equals(DATE_TYPE)) {
+-          return date;
+-        } else if (javaColType.equals(TIME_TYPE)) {
+-          return new Time(date.getTime());
+-        } else if (javaColType.equals(TIMESTAMP_TYPE)) {
+-          return new Timestamp(date.getTime());
+-        }
+-        break;
+-      case TIMESTAMP:
+-        Timestamp ts = (Timestamp) val;
+-        if (javaColType.equals(DATE_TYPE)) {
+-          return new Date(ts.getTime());
+-        } else if (javaColType.equals(TIME_TYPE)) {
+-          return new Time(ts.getTime());
+-        } else if (javaColType.equals(TIMESTAMP_TYPE)) {
+-          return ts;
+-        }
+-        break;
+       case STRING:
+-      case VARCHAR:
+-      case CHAR:
+         val = convertStringTypes(val, javaColType);
+         if (val != null) {
+           return val;
+@@ -219,12 +197,6 @@
+         break;
+       case BINARY:
+         val = convertBinaryTypes(val, javaColType);
+-        if (val != null) {
+-          return val;
+-        }
+-        break;
+-      case DECIMAL:
+-        val = convertDecimalTypes(val, javaColType);
+         if (val != null) {
+           return val;
+         }
+diff -uN -r sqoop-1.4.5-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatImportHelper.java sqoop-1.4.5-2.6.0-0.12.0-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatImportHelper.java
+--- sqoop-1.4.5-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatImportHelper.java	Sat Aug  2 03:07:54 2014
++++ sqoop-1.4.5-2.6.0-0.12.0-src/src/java/org/apache/sqoop/mapreduce/hcat/SqoopHCatImportHelper.java	Tue Mar  3 22:07:40 2015
+@@ -33,11 +33,9 @@
+ import org.apache.commons.logging.LogFactory;
+ import org.apache.hadoop.conf.Configuration;
+ import org.apache.hadoop.fs.Path;
+-import org.apache.hadoop.hive.common.type.HiveChar;
++import org.apache.hadoop.hive.common.type.HiveBaseChar;
+ import org.apache.hadoop.hive.common.type.HiveDecimal;
+ import org.apache.hadoop.hive.common.type.HiveVarchar;
+-import org.apache.hadoop.hive.serde2.typeinfo.CharTypeInfo;
+-import org.apache.hadoop.hive.serde2.typeinfo.VarcharTypeInfo;
+ import org.apache.hadoop.io.BytesWritable;
+ import org.apache.hadoop.io.DefaultStringifier;
+ import org.apache.hadoop.io.IntWritable;
+@@ -243,14 +241,6 @@
+ 
+     if (hfsType == HCatFieldSchema.Type.STRING) {
+       return s;
+-    } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-      VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-      HiveVarchar hvc = new HiveVarchar(s, vti.getLength());
+-      return hvc;
+-    } else if (hfsType == HCatFieldSchema.Type.CHAR) {
+-      CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-      HiveChar hc = new HiveChar(s, cti.getLength());
+-      return hc;
+     }
+     return null;
+   }
+@@ -262,60 +252,24 @@
+     Timestamp ts;
+     if (val instanceof java.sql.Date) {
+       d = (Date) val;
+-      if (hfsType == HCatFieldSchema.Type.DATE) {
+-        return d;
+-      } else if (hfsType == HCatFieldSchema.Type.TIMESTAMP) {
+-        return new Timestamp(d.getTime());
+-      } else if (hfsType == HCatFieldSchema.Type.BIGINT) {
++      if (hfsType == HCatFieldSchema.Type.BIGINT) {
+         return (d.getTime());
+       } else if (hfsType == HCatFieldSchema.Type.STRING) {
+         return val.toString();
+-      } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-        VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-        HiveVarchar hvc = new HiveVarchar(val.toString(), vti.getLength());
+-        return hvc;
+-      } else if (hfsType == HCatFieldSchema.Type.CHAR) {
+-        CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-        HiveChar hChar = new HiveChar(val.toString(), cti.getLength());
+-        return hChar;
+       }
+     } else if (val instanceof java.sql.Time) {
+       t = (Time) val;
+-      if (hfsType == HCatFieldSchema.Type.DATE) {
+-        return new Date(t.getTime());
+-      } else if (hfsType == HCatFieldSchema.Type.TIMESTAMP) {
+-        return new Timestamp(t.getTime());
+-      } else if (hfsType == HCatFieldSchema.Type.BIGINT) {
++      if (hfsType == HCatFieldSchema.Type.BIGINT) {
+         return ((Time) val).getTime();
+       } else if (hfsType == HCatFieldSchema.Type.STRING) {
+         return val.toString();
+-      } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-        VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-        HiveVarchar hvc = new HiveVarchar(val.toString(), vti.getLength());
+-        return hvc;
+-      } else if (hfsType == HCatFieldSchema.Type.CHAR) {
+-        CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-        HiveChar hChar = new HiveChar(val.toString(), cti.getLength());
+-        return hChar;
+       }
+     } else if (val instanceof java.sql.Timestamp) {
+       ts = (Timestamp) val;
+-      if (hfsType == HCatFieldSchema.Type.DATE) {
+-        return new Date(ts.getTime());
+-      } else if (hfsType == HCatFieldSchema.Type.TIMESTAMP) {
+-        return ts;
+-      } else if (hfsType == HCatFieldSchema.Type.BIGINT) {
++      if (hfsType == HCatFieldSchema.Type.BIGINT) {
+         return ts.getTime();
+       } else if (hfsType == HCatFieldSchema.Type.STRING) {
+         return val.toString();
+-      } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-        VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-        HiveVarchar hvc = new HiveVarchar(val.toString(), vti.getLength());
+-        return hvc;
+-      } else if (hfsType == HCatFieldSchema.Type.CHAR) {
+-        CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-        HiveChar hc = new HiveChar(val.toString(), cti.getLength());
+-        return hc;
+       }
+     }
+     return null;
+@@ -323,9 +277,7 @@
+ 
+   private Object convertStringTypes(Object val, HCatFieldSchema hfs) {
+     HCatFieldSchema.Type hfsType = hfs.getType();
+-    if (hfsType == HCatFieldSchema.Type.STRING
+-        || hfsType == HCatFieldSchema.Type.VARCHAR
+-        || hfsType == HCatFieldSchema.Type.CHAR) {
++    if (hfsType == HCatFieldSchema.Type.STRING) {
+       String str = val.toString();
+       if (doHiveDelimsReplacement) {
+         str = FieldFormatter.hiveStringReplaceDelims(str,
+@@ -333,19 +285,7 @@
+       }
+       if (hfsType == HCatFieldSchema.Type.STRING) {
+         return str;
+-      } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-        VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-        HiveVarchar hvc = new HiveVarchar(str, vti.getLength());
+-        return hvc;
+-      } else if (hfsType == HCatFieldSchema.Type.CHAR) {
+-        CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-        HiveChar hc = new HiveChar(val.toString(), cti.getLength());
+-        return hc;
+-      }
+-    } else if (hfsType == HCatFieldSchema.Type.DECIMAL) {
+-      BigDecimal bd = new BigDecimal(val.toString(), MathContext.DECIMAL128);
+-      HiveDecimal hd = HiveDecimal.create(bd);
+-      return hd;
++      }
+     }
+     return null;
+   }
+@@ -369,14 +309,6 @@
+       return (double) (b ? 1 : 0);
+     } else if (hfsType == HCatFieldSchema.Type.STRING) {
+       return val.toString();
+-    } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-      VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-      HiveVarchar hvc = new HiveVarchar(val.toString(), vti.getLength());
+-      return hvc;
+-    } else if (hfsType == HCatFieldSchema.Type.CHAR) {
+-      CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-      HiveChar hChar = new HiveChar(val.toString(), cti.getLength());
+-      return hChar;
+     }
+     return null;
+   }
+@@ -388,9 +320,7 @@
+       return null;
+     }
+     if (val instanceof BigDecimal
+-        && hfsType == HCatFieldSchema.Type.STRING
+-        || hfsType == HCatFieldSchema.Type.VARCHAR
+-        || hfsType == HCatFieldSchema.Type.CHAR) {
++        && hfsType == HCatFieldSchema.Type.STRING) {
+       BigDecimal bd = (BigDecimal) val;
+       String bdStr = null;
+       if (bigDecimalFormatString) {
+@@ -398,17 +328,7 @@
+       } else {
+         bdStr = bd.toString();
+       }
+-      if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-        VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-        HiveVarchar hvc = new HiveVarchar(bdStr, vti.getLength());
+-        return hvc;
+-      } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-        CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-        HiveChar hChar = new HiveChar(bdStr, cti.getLength());
+-        return hChar;
+-      } else {
+         return bdStr;
+-      }
+     }
+     Number n = (Number) val;
+     if (hfsType == HCatFieldSchema.Type.TINYINT) {
+@@ -427,18 +347,6 @@
+       return n.byteValue() == 0 ? Boolean.FALSE : Boolean.TRUE;
+     } else if (hfsType == HCatFieldSchema.Type.STRING) {
+       return n.toString();
+-    } else if (hfsType == HCatFieldSchema.Type.VARCHAR) {
+-      VarcharTypeInfo vti = (VarcharTypeInfo) hfs.getTypeInfo();
+-      HiveVarchar hvc = new HiveVarchar(val.toString(), vti.getLength());
+-      return hvc;
+-    } else if (hfsType == HCatFieldSchema.Type.CHAR) {
+-      CharTypeInfo cti = (CharTypeInfo) hfs.getTypeInfo();
+-      HiveChar hChar = new HiveChar(val.toString(), cti.getLength());
+-      return hChar;
+-    } else if (hfsType == HCatFieldSchema.Type.DECIMAL) {
+-      BigDecimal bd = new BigDecimal(n.doubleValue(),
+-        MathContext.DECIMAL128);
+-      return HiveDecimal.create(bd);
+     }
+     return null;
+   }
